@@ -18,32 +18,29 @@ workloads.
 
 ## Configuration Requirements
 
-* Secret object with the authentication key for Disk
+* Secret object with the authentication (Access Key ID/Secret) and privilege to buy/attach ETC and disks.
 * StorageClass with diskplugin (default diskplugin.csi.alibabacloud.com name) as a provisioner name and information about disk(zoneId, regionId, type)
 * Service Accounts with required RBAC permissions
-
-
-## Compiling and Package
-diskplugin.csi.alibabacloud.com can be compiled in a form of a container.
-
-To build a container:
-```
-$ cd build && sh build-disk.sh
-```
-
-## Demo
-
-[![](demo.png)](http://cloud.video.taobao.com/play/u/1962692024/p/1/e/6/t/1/50224108448.mp4)
 
 
 ## How to Use
 
 ### Requirements
 
-You can create a Kubernetes Cluster on [Alibaba cloud Container Service](https://help.aliyun.com/product/25972.html?spm=a2c4g.750001.2.3.A7g9FZ)
+1. A kubernete cluster on aliyun ETC.
+2. Ensure service account admin under namespace kube-system
+
+```
+kubectl apply -f ./deploy/rbac.yaml
+
+```
 
 ### Step 1: Create CSI disk-plugin
-If the cluster not in STS mode, you need to config AK info to plugin; Set ACCESS_KEY_ID, ACCESS_KEY_SECRET to environment;
+If the cluster is not in STS mode, ACCESS_KEY_ID and ACCESS_KEY_SECRET can be set as environment variable via secret object. 
+
+check `deploy/disk/disk-plugin.yaml` and `deploy/disk/disk-provision.yaml`. 
+
+If only for a quick test, key and secret can be filled in as well.
 
 
 ```
@@ -64,12 +61,24 @@ If the cluster not in STS mode, you need to config AK info to plugin; Set ACCESS
 ```
 
 ### Step 3: Create StorageClass
-```
-# kubectl create -f ./examples/disk/storageclass.yaml
-```
-**Important:** storageclass.yaml, must be customized to match your environment: zoneId, zoneId;
 
-### Step 4: Check Status of CSI plugin
+```
+# kubectl create -f ./deploy/disk/storageclass.yaml
+```
+
+**Important:** storageclass.yaml, must be customized to match your environment: zoneId, regionId;
+
+### Step 4: Added PVC
+
+```
+# kubectl create -f ./deploy/disk/disk-pvc.yaml
+```
+
+After successfully finished this step, an unattached 25G ssd disk can be found in aliyun ECS dashboard. 
+
+
+**Check status of csi plugins and provisiones.**
+
 ```
 # kubectl get pods | grep csi
 ```
@@ -79,55 +88,35 @@ The following output should be displayed:
 ```
 # kubectl get pod
 NAME                    READY   STATUS    RESTARTS   AGE
-csi-disk-attacher-0     1/1     Running   0          7s
+csi-disk-provisioner-0  2/2     Running   0          7s
 csi-disk-plugin-4hg7v   2/2     Running   0          3s
 csi-disk-plugin-rhjp9   2/2     Running   0          3s
 csi-disk-plugin-x229t   2/2     Running   0          3s
 ```
 
-### Step 7: Create PVC & Deployments
-```
-# kubectl create -f ./examples/disk/deploy.yaml
-```
-
-### Step 8: Check status of PVC/PV
-```
-# kubectl get pvc
-NAME       STATUS    VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS           AGE
-disk-pvc   Bound     pvc-64b3d1bd-96c0-11e8-89b1-00163e0c412f   25Gi       RWO            csi-disk               36m
-```
+**Check PVC**
 
 ```
-# kubectl get pv
-NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS        CLAIM                 STORAGECLASS               REASON    AGE
-pvc-64b3d1bd-96c0-11e8-89b1-00163e0c412f   25Gi       RWO            Delete           Terminating   default/disk-pvc      csi-disk                             35m
+# kubectl get pvc | grep disk-pvc
 ```
 
+A newly created pvc with BOUND status should exist.
+
+if no such a pvc or the status is not bound, go to describe pvc and find more details.
+
+
+### Step 5: Mount pvc to a pod
+
 ```
-# kubectl describe pv pvc-64b3d1bd-96c0-11e8-89b1-00163e0c412f
-Name:            pvc-64b3d1bd-96c0-11e8-89b1-00163e0c412f
-Labels:          <none>
-Annotations:     pv.kubernetes.io/provisioned-by=diskplugin.csi.alibabacloud.com
-Finalizers:      [kubernetes.io/pv-protection external-attacher/diskplugin.csi.alibabacloud.com]
-StorageClass:    csi-disk
-Status:          Terminating (lasts 2m)
-Claim:           default/disk-pvc
-Reclaim Policy:  Delete
-Access Modes:    RWO
-Capacity:        25Gi
-Node Affinity:   <none>
-Message:
-Source:
-    Type:          CSI (a Container Storage Interface (CSI) volume source)
-    Driver:        diskplugin.csi.alibabacloud.com
-    VolumeHandle:  d-2ze47lce65lv5g7zsb4y
-    ReadOnly:      false
-Events:            <none>
+# kubectl create -f ./deploy/disk/example_deploy.yaml
 ```
 
-#### Step 9: Check status of Deployment
+**Check if pod has a running status**
+
 ```
 # kubectl get pod
 NAME                                 READY     STATUS    RESTARTS   AGE
 nginx-deployment1-5879d9db88-49n8m   1/1       Running   0          37m
 ```
+
+And that's all.

@@ -1,0 +1,11 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+   name: alicloud-disk-ssd-shanghai
+provisioner: diskplugin.csi.alibabacloud.com
+parameters:
+    type: cloud_ssd
+    zoneId: cn-shanghai-g
+    regionId: cn-shanghai
+reclaimPolicy: Retain
+allowVolumeExpansion: false
